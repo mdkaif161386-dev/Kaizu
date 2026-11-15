@@ -1,0 +1,358 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private authenticated student profile with PII (name, DOB, phone) and competitive exam preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "fullName": { "type": "string", "description": "Student full name." },
+        "dob": { "type": "string", "description": "Student date of birth (YYYY-MM-DD or formatted string)." },
+        "phoneNumber": { "type": "string", "description": "Optional student contact phone number." },
+        "selectedExamId": { "type": "string", "description": "Selected competitive exam identifier (e.g., NEET, JEE, UPSC)." },
+        "totalPoints": { "type": "integer", "description": "Cumulative quiz points earned." },
+        "quizzesCompleted": { "type": "integer", "description": "Total completed quizzes count." },
+        "totalQuestionsSolved": { "type": "integer", "description": "Total questions attempted across quizzes." },
+        "totalCorrectAnswers": { "type": "integer", "description": "Total correct answers across quizzes." },
+        "megaQuizzesCompleted": { "type": "integer", "description": "Total completed Mega Quizzes." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on profile creation (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on profile update (FieldValue.serverTimestamp())." }
+      },
+      "required": [
+        "userId",
+        "fullName",
+        "dob",
+        "selectedExamId",
+        "totalPoints",
+        "quizzesCompleted",
+        "totalQuestionsSolved",
+        "totalCorrectAnswers",
+        "megaQuizzesCompleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "QuizAttempt": {
+      "title": "QuizAttempt",
+      "description": "Immutable completed quiz record with score, timing, wrong-question analysis, and detailed AI solutions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Display name of the competitive exam." },
+        "mode": { "type": "string", "enum": ["CHAPTER", "MEGA"], "description": "Quiz mode." },
+        "subjectNames": { "type": "array", "description": "List of subjects covered in this quiz." },
+        "chapterSummary": { "type": "string", "description": "Chapter title or summary of multi-subject chapters." },
+        "difficulty": { "type": "string", "enum": ["EASY", "MODERATE", "HARD", "EXTREME"], "description": "Difficulty level." },
+        "totalQuestions": { "type": "integer", "description": "Total number of MCQs in the quiz." },
+        "correctCount": { "type": "integer", "description": "Correctly answered questions." },
+        "wrongCount": { "type": "integer", "description": "Incorrectly answered questions." },
+        "skippedCount": { "type": "integer", "description": "Unanswered or timed-out questions." },
+        "scorePoints": { "type": "integer", "description": "Computed leaderboard score points." },
+        "accuracyPercent": { "type": "number", "description": "Accuracy percentage (0 to 100)." },
+        "timePerQuestionSec": { "type": "integer", "description": "Time limit per question in seconds." },
+        "timeTakenSec": { "type": "integer", "description": "Total elapsed seconds for the quiz." },
+        "questionReviews": { "type": "array", "description": "Serialized question review objects including correct answer, selected answer, and detailed explanation." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": [
+        "userId",
+        "examId",
+        "examName",
+        "mode",
+        "subjectNames",
+        "chapterSummary",
+        "difficulty",
+        "totalQuestions",
+        "correctCount",
+        "wrongCount",
+        "skippedCount",
+        "scorePoints",
+        "accuracyPercent",
+        "timePerQuestionSec",
+        "timeTakenSec",
+        "questionReviews",
+        "createdAt"
+      ]
+    },
+    "StudyInsight": {
+      "title": "StudyInsight",
+      "description": "Personalized AI study recommendations generated from user's quiz performance.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "headline": { "type": "string", "description": "Concise summary headline." },
+        "recommendations": { "type": "array", "description": "Actionable study recommendation strings." },
+        "focusTopics": { "type": "array", "description": "Priority weak chapters or topics." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "examId", "headline", "recommendations", "focusTopics", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public non-PII exam-specific leaderboard entry keyed by userId.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of participant." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Competitive exam display name." },
+        "scorePoints": { "type": "integer", "description": "Cumulative score points for this exam." },
+        "bestAccuracy": { "type": "number", "description": "Highest accuracy achieved in this exam." },
+        "quizzesCount": { "type": "integer", "description": "Number of quizzes completed in this exam." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "displayName", "examId", "examName", "scorePoints", "bestAccuracy", "quizzesCount", "updatedAt"]
+    },
+    "MegaLeaderboardEntry": {
+      "title": "MegaLeaderboardEntry",
+      "description": "Public non-PII Mega Quiz Arena leaderboard entry keyed by userId.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of participant." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Competitive exam display name." },
+        "scorePoints": { "type": "integer", "description": "Cumulative Mega Quiz score points." },
+        "bestAccuracy": { "type": "number", "description": "Best Mega Quiz accuracy achieved." },
+        "megaQuizzesCount": { "type": "integer", "description": "Number of Mega Quizzes completed." },
+        "highestDifficulty": { "type": "string", "enum": ["EASY", "MODERATE", "HARD", "EXTREME"], "description": "Highest difficulty cleared." },
+        "bestTimeSec": { "type": "integer", "description": "Fastest completion time in seconds." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "examId",
+        "examName",
+        "scorePoints",
+        "bestAccuracy",
+        "megaQuizzesCount",
+        "highestDifficulty",
+        "bestTimeSec",
+        "updatedAt"
+      ]
+    },
+    "FlashcardDeck": {
+      "title": "FlashcardDeck",
+      "description": "Owner-scoped AI-generated chapter flashcard deck containing concept summaries, key formulas, and per-card mastery progress.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Competitive exam display name." },
+        "title": { "type": "string", "description": "Deck title summarizing selected chapters." },
+        "subjectNames": { "type": "array", "description": "Subjects included in this deck." },
+        "chapters": { "type": "array", "description": "Selected chapters included in this deck." },
+        "focus": { "type": "string", "enum": ["BALANCED", "FORMULAS", "TRAPS"], "description": "Flashcard generation focus mode." },
+        "cards": { "type": "array", "description": "Generated flashcard objects with front prompt, key formula, summary, tip, and mastered flag." },
+        "masteredCount": { "type": "integer", "description": "Number of cards marked mastered by the student." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": [
+        "userId",
+        "examId",
+        "examName",
+        "title",
+        "subjectNames",
+        "chapters",
+        "focus",
+        "cards",
+        "masteredCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SavedQuestion": {
+      "title": "SavedQuestion",
+      "description": "Owner-scoped bookmarked difficult or important MCQ saved during a quiz or review for later revision.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Competitive exam display name." },
+        "subject": { "type": "string", "description": "Subject name." },
+        "chapter": { "type": "string", "description": "Chapter name." },
+        "difficulty": { "type": "string", "enum": ["EASY", "MODERATE", "HARD", "EXTREME"], "description": "Difficulty level." },
+        "question": { "type": "string", "description": "MCQ question stem." },
+        "options": { "type": "array", "description": "List of 4 answer options." },
+        "correctIndex": { "type": "integer", "description": "0-based index of correct option." },
+        "explanation": { "type": "string", "description": "Detailed step-by-step solution." },
+        "savedAt": { "type": "string", "format": "date-time", "description": "Server timestamp when bookmarked." }
+      },
+      "required": [
+        "userId",
+        "examId",
+        "examName",
+        "subject",
+        "chapter",
+        "difficulty",
+        "question",
+        "options",
+        "correctIndex",
+        "explanation",
+        "savedAt"
+      ]
+    },
+    "StudyGoalRecord": {
+      "title": "StudyGoalRecord",
+      "description": "Owner-scoped daily study goal target, logged seconds, active physical study session anchor, 55m/5m focus loop anchor, and blocked social media packages.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID." },
+        "dateKey": { "type": "string", "description": "Local date key YYYY-MM-DD." },
+        "targetMinutes": { "type": "integer", "description": "Daily goal duration in minutes (0..720)." },
+        "loggedSeconds": { "type": "integer", "description": "Committed study seconds accumulated today." },
+        "activeSessionStartedAtMs": { "type": "integer", "description": "Epoch ms when active physical/focus study timer began, or 0 if paused." },
+        "cycleAnchorEpochMs": { "type": "integer", "description": "Epoch ms when today's 60-minute (55m lock / 5m break) cycle started." },
+        "activeSubject": { "type": "string", "description": "Optional subject label for active physical study." },
+        "blockedPackages": { "type": "array", "description": "Selected social media package names disabled until goal completion." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": [
+        "userId",
+        "dateKey",
+        "targetMinutes",
+        "loggedSeconds",
+        "activeSessionStartedAtMs",
+        "cycleAnchorEpochMs",
+        "activeSubject",
+        "blockedPackages",
+        "updatedAt"
+      ]
+    },
+    "StudyTimeLeaderboardEntry": {
+      "title": "StudyTimeLeaderboardEntry",
+      "description": "Public non-PII study duration leaderboard entry tracking 1 Day, 1 Week, 1 Month, and lifetime study seconds.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of student." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "examId": { "type": "string", "description": "Competitive exam ID." },
+        "examName": { "type": "string", "description": "Competitive exam name." },
+        "dayKey": { "type": "string", "description": "Date key YYYY-MM-DD for daySeconds bucket." },
+        "daySeconds": { "type": "integer", "description": "Seconds studied on dayKey." },
+        "weekKey": { "type": "string", "description": "Week key YYYY-Www for weekSeconds bucket." },
+        "weekSeconds": { "type": "integer", "description": "Seconds studied in weekKey." },
+        "monthKey": { "type": "string", "description": "Month key YYYY-MM for monthSeconds bucket." },
+        "monthSeconds": { "type": "integer", "description": "Seconds studied in monthKey." },
+        "totalSeconds": { "type": "integer", "description": "Total cumulative study seconds." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "examId",
+        "examName",
+        "dayKey",
+        "daySeconds",
+        "weekKey",
+        "weekSeconds",
+        "monthKey",
+        "monthSeconds",
+        "totalSeconds",
+        "updatedAt"
+      ]
+    },
+    "ChatModerationStatus": {
+      "title": "ChatModerationStatus",
+      "description": "Owner moderation record enforcing 3 warnings before 7-day chat suspension for sexual content violations.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID." },
+        "warningCount": { "type": "integer", "description": "Cumulative sexual-content warnings issued (1..3 before ban)." },
+        "lastWarningReason": { "type": "string", "description": "Reason summary of the latest policy violation." },
+        "bannedUntilEpochMs": { "type": "integer", "description": "Epoch ms until which chats are disabled (0 if not banned)." },
+        "bannedUntil": { "type": "string", "format": "date-time", "description": "Timestamp until which chats are disabled (epoch 0 if not banned)." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "warningCount", "lastWarningReason", "bannedUntilEpochMs", "bannedUntil", "updatedAt"]
+    },
+    "StudyChatMessage": {
+      "title": "StudyChatMessage",
+      "description": "Student study chat message in an exam room or 1-on-1 direct study thread.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string", "description": "Sender Firebase Auth UID." },
+        "senderName": { "type": "string", "description": "Sender display name." },
+        "examId": { "type": "string", "description": "Exam ID for room messages (or empty for DM)." },
+        "threadId": { "type": "string", "description": "Thread ID for direct messages (or empty for exam room)." },
+        "participantIds": { "type": "array", "description": "Two participant UIDs for direct messages." },
+        "text": { "type": "string", "description": "Moderated study message text." },
+        "attachmentLabel": { "type": "string", "description": "Optional study resource/media attachment label." },
+        "attachmentType": { "type": "string", "enum": ["NONE", "IMAGE", "VIDEO", "LINK"], "description": "Attachment kind." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["senderId", "senderName", "text", "attachmentLabel", "attachmentType", "createdAt"]
+    },
+    "DirectChatThread": {
+      "title": "DirectChatThread",
+      "description": "Metadata for 1-on-1 student study discussion thread.",
+      "type": "object",
+      "properties": {
+        "participantIds": { "type": "array", "description": "Two participant UIDs." },
+        "participantNames": { "type": "object", "description": "UID to displayName map." },
+        "lastMessage": { "type": "string", "description": "Preview of the latest moderated study message." },
+        "lastSenderId": { "type": "string", "description": "UID of last message sender." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["participantIds", "participantNames", "lastMessage", "lastSenderId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private student profile containing PII and aggregate stats."
+    },
+    "/users/{userId}/quiz_attempts/{attemptId}": {
+      "schema": { "$ref": "#/entities/QuizAttempt" },
+      "description": "Owner-scoped quiz attempt history with detailed solutions and wrong-question reviews."
+    },
+    "/users/{userId}/study_insights/{insightId}": {
+      "schema": { "$ref": "#/entities/StudyInsight" },
+      "description": "Owner-scoped personalized AI study recommendations."
+    },
+    "/users/{userId}/flashcard_decks/{deckId}": {
+      "schema": { "$ref": "#/entities/FlashcardDeck" },
+      "description": "Owner-scoped AI flashcard decks for selected chapters."
+    },
+    "/users/{userId}/saved_questions/{questionId}": {
+      "schema": { "$ref": "#/entities/SavedQuestion" },
+      "description": "Owner-scoped bookmarked quiz questions for later revision."
+    },
+    "/users/{userId}/study_goals/{dateKey}": {
+      "schema": { "$ref": "#/entities/StudyGoalRecord" },
+      "description": "Owner-scoped daily study goal target, progress, physical study session, and blocked social apps."
+    },
+    "/leaderboards/{examId}/entries/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Exam-specific public non-PII leaderboard entries."
+    },
+    "/mega_leaderboards/{examId}/entries/{userId}": {
+      "schema": { "$ref": "#/entities/MegaLeaderboardEntry" },
+      "description": "Exam-specific Mega Quiz Arena public non-PII leaderboard entries."
+    },
+    "/study_time_leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/StudyTimeLeaderboardEntry" },
+      "description": "Public 1 Day, 1 Week, and 1 Month study duration leaderboard entries."
+    },
+    "/chat_moderation/{userId}": {
+      "schema": { "$ref": "#/entities/ChatModerationStatus" },
+      "description": "Owner chat moderation warning count and 7-day chat suspension timestamp."
+    },
+    "/exam_chats/{examId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/StudyChatMessage" },
+      "description": "Exam-specific moderated student study room messages."
+    },
+    "/direct_chat_threads/{threadId}": {
+      "schema": { "$ref": "#/entities/DirectChatThread" },
+      "description": "Participant-scoped 1-on-1 study chat thread headers."
+    },
+    "/direct_chats/{threadId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/StudyChatMessage" },
+      "description": "Participant-scoped 1-on-1 moderated student study messages."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Kaizu",
+  "description": "AI-powered competitive exam preparation app with chapter-wise and Mega Quizzes, instant analytics, detailed solutions, personalized recommendations, and live leaderboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

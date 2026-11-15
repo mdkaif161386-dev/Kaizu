@@ -1,0 +1,602 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Helpers
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+             data.dob is string && data.dob.size() >= 4 && data.dob.size() <= 30 &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 25)) &&
+             data.selectedExamId is string && data.selectedExamId.size() >= 2 && data.selectedExamId.size() <= 40 &&
+             data.totalPoints is int && data.totalPoints >= 0 &&
+             data.quizzesCompleted is int && data.quizzesCompleted >= 0 &&
+             data.totalQuestionsSolved is int && data.totalQuestionsSolved >= 0 &&
+             data.totalCorrectAnswers is int && data.totalCorrectAnswers >= 0 &&
+             data.megaQuizzesCompleted is int && data.megaQuizzesCompleted >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidQuizAttempt(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.examId is string && data.examId.size() >= 2 && data.examId.size() <= 40 &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.mode is string && data.mode in ['CHAPTER', 'MEGA'] &&
+             data.subjectNames is list && data.subjectNames.size() >= 1 && data.subjectNames.size() <= 10 && data.subjectNames[0] is string &&
+             data.chapterSummary is string && data.chapterSummary.size() >= 1 && data.chapterSummary.size() <= 300 &&
+             data.difficulty is string && data.difficulty in ['EASY', 'MODERATE', 'HARD', 'EXTREME'] &&
+             data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 50 &&
+             data.correctCount is int && data.correctCount >= 0 && data.correctCount <= data.totalQuestions &&
+             data.wrongCount is int && data.wrongCount >= 0 && data.wrongCount <= data.totalQuestions &&
+             data.skippedCount is int && data.skippedCount >= 0 && data.skippedCount <= data.totalQuestions &&
+             data.scorePoints is int && data.scorePoints >= 0 &&
+             data.accuracyPercent is number && data.accuracyPercent >= 0 && data.accuracyPercent <= 100 &&
+             data.timePerQuestionSec is int && data.timePerQuestionSec >= 10 && data.timePerQuestionSec <= 600 &&
+             data.timeTakenSec is int && data.timeTakenSec >= 0 &&
+             data.questionReviews is list && data.questionReviews.size() >= 1 && data.questionReviews.size() <= 50 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidStudyInsight(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.examId is string && data.examId.size() >= 2 && data.examId.size() <= 40 &&
+             data.headline is string && data.headline.size() >= 1 && data.headline.size() <= 200 &&
+             data.recommendations is list && data.recommendations.size() >= 1 && data.recommendations.size() <= 10 && data.recommendations[0] is string &&
+             data.focusTopics is list && data.focusTopics.size() <= 10 && (data.focusTopics.size() == 0 || data.focusTopics[0] is string) &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFlashcardDeck(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.examId is string && data.examId.size() >= 2 && data.examId.size() <= 40 &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 160 &&
+             data.subjectNames is list && data.subjectNames.size() >= 1 && data.subjectNames.size() <= 10 && data.subjectNames[0] is string &&
+             data.chapters is list && data.chapters.size() >= 1 && data.chapters.size() <= 30 && data.chapters[0] is string &&
+             data.focus is string && data.focus in ['BALANCED', 'FORMULAS', 'TRAPS'] &&
+             data.cards is list && data.cards.size() >= 1 && data.cards.size() <= 25 &&
+             data.masteredCount is int && data.masteredCount >= 0 && data.masteredCount <= data.cards.size() &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSavedQuestion(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.examId is string && data.examId.size() >= 2 && data.examId.size() <= 40 &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80 &&
+             data.chapter is string && data.chapter.size() >= 1 && data.chapter.size() <= 160 &&
+             data.difficulty is string && data.difficulty in ['EASY', 'MODERATE', 'HARD', 'EXTREME'] &&
+             data.question is string && data.question.size() >= 1 && data.question.size() <= 2000 &&
+             data.options is list && data.options.size() >= 2 && data.options.size() <= 6 && data.options[0] is string &&
+             data.correctIndex is int && data.correctIndex >= 0 && data.correctIndex < data.options.size() &&
+             data.explanation is string && data.explanation.size() >= 1 && data.explanation.size() <= 4000 &&
+             data.savedAt is timestamp && data.savedAt <= request.time;
+    }
+
+    function isValidLeaderboardEntry(data, examId, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.examId is string && data.examId == examId &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.scorePoints is int && data.scorePoints >= 0 &&
+             data.bestAccuracy is number && data.bestAccuracy >= 0 && data.bestAccuracy <= 100 &&
+             data.quizzesCount is int && data.quizzesCount >= 1 &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMegaLeaderboardEntry(data, examId, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.examId is string && data.examId == examId &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.scorePoints is int && data.scorePoints >= 0 &&
+             data.bestAccuracy is number && data.bestAccuracy >= 0 && data.bestAccuracy <= 100 &&
+             data.megaQuizzesCount is int && data.megaQuizzesCount >= 1 &&
+             data.highestDifficulty is string && data.highestDifficulty in ['EASY', 'MODERATE', 'HARD', 'EXTREME'] &&
+             data.bestTimeSec is int && data.bestTimeSec >= 0 &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidStudyGoal(data, userId, dateKey) {
+      return data.userId is string && data.userId == userId &&
+             data.dateKey is string && data.dateKey == dateKey &&
+             data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+             data.targetMinutes is int && data.targetMinutes >= 0 && data.targetMinutes <= 720 &&
+             data.loggedSeconds is int && data.loggedSeconds >= 0 &&
+             data.activeSessionStartedAtMs is int && data.activeSessionStartedAtMs >= 0 &&
+             data.cycleAnchorEpochMs is int && data.cycleAnchorEpochMs >= 0 &&
+             data.activeSubject is string && data.activeSubject.size() <= 80 &&
+             data.blockedPackages is list && data.blockedPackages.size() <= 30 &&
+             (data.blockedPackages.size() == 0 || data.blockedPackages[0] is string) &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidStudyTimeLeaderboardEntry(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.examId is string && data.examId.size() >= 2 && data.examId.size() <= 40 &&
+             data.examName is string && data.examName.size() >= 2 && data.examName.size() <= 80 &&
+             data.dayKey is string && data.dayKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+             data.daySeconds is int && data.daySeconds >= 0 &&
+             data.weekKey is string && data.weekKey.size() >= 6 && data.weekKey.size() <= 12 &&
+             data.weekSeconds is int && data.weekSeconds >= 0 &&
+             data.monthKey is string && data.monthKey.matches('^[0-9]{4}-[0-9]{2}$') &&
+             data.monthSeconds is int && data.monthSeconds >= 0 &&
+             data.totalSeconds is int && data.totalSeconds >= 0 &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatModeration(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.warningCount is int && data.warningCount >= 0 && data.warningCount <= 100 &&
+             data.lastWarningReason is string && data.lastWarningReason.size() <= 300 &&
+             data.bannedUntilEpochMs is int && data.bannedUntilEpochMs >= 0 &&
+             data.bannedUntil is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isChatUnbanned(uid) {
+      return !exists(/databases/$(database)/documents/chat_moderation/$(uid)) ||
+             !(get(/databases/$(database)/documents/chat_moderation/$(uid)).data.bannedUntil is timestamp) ||
+             get(/databases/$(database)/documents/chat_moderation/$(uid)).data.bannedUntil <= request.time;
+    }
+
+    function isValidExamChatMessage(data, examId) {
+      return data.senderId is string && data.senderId == request.auth.uid &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             data.examId is string && data.examId == examId &&
+             data.threadId is string && data.threadId.size() == 0 &&
+             data.participantIds is list && data.participantIds.size() == 0 &&
+             data.text is string && data.text.size() <= 1500 &&
+             data.attachmentLabel is string && data.attachmentLabel.size() <= 200 &&
+             data.attachmentType is string && data.attachmentType in ['NONE', 'IMAGE', 'VIDEO', 'LINK'] &&
+             (data.text.size() > 0 || data.attachmentLabel.size() > 0) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidDirectChatThread(data) {
+      return data.participantIds is list && data.participantIds.size() == 2 &&
+             data.participantIds[0] is string && data.participantIds[1] is string &&
+             data.participantIds[0] != data.participantIds[1] &&
+             request.auth.uid in data.participantIds &&
+             data.participantNames is map &&
+             data.lastMessage is string && data.lastMessage.size() <= 300 &&
+             data.lastSenderId is string && data.lastSenderId == request.auth.uid &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidDirectChatMessage(data, threadId) {
+      return data.senderId is string && data.senderId == request.auth.uid &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             data.examId is string && data.examId.size() <= 40 &&
+             data.threadId is string && data.threadId == threadId &&
+             data.participantIds is list && data.participantIds.size() == 2 &&
+             data.participantIds[0] is string && data.participantIds[1] is string &&
+             request.auth.uid in data.participantIds &&
+             data.text is string && data.text.size() <= 1500 &&
+             data.attachmentLabel is string && data.attachmentLabel.size() <= 200 &&
+             data.attachmentType is string && data.attachmentType in ['NONE', 'IMAGE', 'VIDEO', 'LINK'] &&
+             (data.text.size() > 0 || data.attachmentLabel.size() > 0) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // 1. Private User Profile (PII strictly isolated to owner)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'fullName', 'dob', 'selectedExamId',
+                         'totalPoints', 'quizzesCompleted', 'totalQuestionsSolved',
+                         'totalCorrectAnswers', 'megaQuizzesCompleted', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'fullName', 'dob', 'phoneNumber', 'selectedExamId',
+                         'totalPoints', 'quizzesCompleted', 'totalQuestionsSolved',
+                         'totalCorrectAnswers', 'megaQuizzesCompleted', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming(), userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'fullName', 'dob', 'phoneNumber', 'selectedExamId',
+                         'totalPoints', 'quizzesCompleted', 'totalQuestionsSolved',
+                         'totalCorrectAnswers', 'megaQuizzesCompleted', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      // 2. Owner-scoped Quiz Attempts (Immutable history)
+      match /quiz_attempts/{attemptId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(attemptId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(attemptId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'examId', 'examName', 'mode', 'subjectNames',
+                           'chapterSummary', 'difficulty', 'totalQuestions',
+                           'correctCount', 'wrongCount', 'skippedCount', 'scorePoints',
+                           'accuracyPercent', 'timePerQuestionSec', 'timeTakenSec',
+                           'questionReviews', 'createdAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'examId', 'examName', 'mode', 'subjectNames',
+                           'chapterSummary', 'difficulty', 'totalQuestions',
+                           'correctCount', 'wrongCount', 'skippedCount', 'scorePoints',
+                           'accuracyPercent', 'timePerQuestionSec', 'timeTakenSec',
+                           'questionReviews', 'createdAt'
+                         ]) &&
+                         isValidQuizAttempt(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(attemptId) && request.auth.uid == userId;
+      }
+
+      // 3. Owner-scoped AI Study Insights
+      match /study_insights/{insightId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(insightId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(insightId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'examId', 'headline', 'recommendations', 'focusTopics', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'examId', 'headline', 'recommendations', 'focusTopics', 'updatedAt'
+                         ]) &&
+                         isValidStudyInsight(incoming(), userId);
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(insightId) &&
+                         request.auth.uid == userId &&
+                         isValidStudyInsight(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'examId', 'headline', 'recommendations', 'focusTopics', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(insightId) && request.auth.uid == userId;
+      }
+
+      // 3b. Owner-scoped AI Flashcard Decks
+      match /flashcard_decks/{deckId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(deckId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(deckId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'examId', 'examName', 'title', 'subjectNames',
+                           'chapters', 'focus', 'cards', 'masteredCount', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'examId', 'examName', 'title', 'subjectNames',
+                           'chapters', 'focus', 'cards', 'masteredCount', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidFlashcardDeck(incoming(), userId);
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(deckId) &&
+                         request.auth.uid == userId &&
+                         isValidFlashcardDeck(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'cards', 'masteredCount', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(deckId) && request.auth.uid == userId;
+      }
+
+      // 3c. Owner-scoped Bookmarked / Saved Questions
+      match /saved_questions/{questionId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(questionId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(questionId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll([
+                           'userId', 'examId', 'examName', 'subject', 'chapter',
+                           'difficulty', 'question', 'options', 'correctIndex', 'explanation', 'savedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'examId', 'examName', 'subject', 'chapter',
+                           'difficulty', 'question', 'options', 'correctIndex', 'explanation', 'savedAt'
+                         ]) &&
+                         isValidSavedQuestion(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(questionId) && request.auth.uid == userId;
+      }
+
+      // 3d. Owner-scoped Daily Study Goal & Social Media Blocker state
+      match /study_goals/{dateKey} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(dateKey) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create, update: if isSignedIn() &&
+                                 isValidId(userId) &&
+                                 isValidId(dateKey) &&
+                                 request.auth.uid == userId &&
+                                 incoming().keys().hasAll([
+                                   'userId', 'dateKey', 'targetMinutes', 'loggedSeconds',
+                                   'activeSessionStartedAtMs', 'cycleAnchorEpochMs',
+                                   'activeSubject', 'blockedPackages', 'updatedAt'
+                                 ]) &&
+                                 incoming().keys().hasOnly([
+                                   'userId', 'dateKey', 'targetMinutes', 'loggedSeconds',
+                                   'activeSessionStartedAtMs', 'cycleAnchorEpochMs',
+                                   'activeSubject', 'blockedPackages', 'updatedAt'
+                                 ]) &&
+                                 isValidStudyGoal(incoming(), userId, dateKey);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(dateKey) && request.auth.uid == userId;
+      }
+    }
+
+    // 4. Exam-Specific Public Leaderboards (No PII)
+    match /leaderboards/{examId}/entries/{userId} {
+      allow get: if isSignedIn() && isValidId(examId) && isValidId(userId);
+      allow list: if isSignedIn() && isValidId(examId);
+
+      allow create: if isSignedIn() &&
+                       isValidId(examId) &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'scorePoints', 'bestAccuracy', 'quizzesCount', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'scorePoints', 'bestAccuracy', 'quizzesCount', 'updatedAt'
+                       ]) &&
+                       isValidLeaderboardEntry(incoming(), examId, userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(examId) &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidLeaderboardEntry(incoming(), examId, userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().examId == existing().examId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'examName', 'scorePoints', 'bestAccuracy', 'quizzesCount', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(examId) && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 5. Mega Quiz Arena Leaderboards per Exam (No PII)
+    match /mega_leaderboards/{examId}/entries/{userId} {
+      allow get: if isSignedIn() && isValidId(examId) && isValidId(userId);
+      allow list: if isSignedIn() && isValidId(examId);
+
+      allow create: if isSignedIn() &&
+                       isValidId(examId) &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'scorePoints', 'bestAccuracy', 'megaQuizzesCount',
+                         'highestDifficulty', 'bestTimeSec', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'scorePoints', 'bestAccuracy', 'megaQuizzesCount',
+                         'highestDifficulty', 'bestTimeSec', 'updatedAt'
+                       ]) &&
+                       isValidMegaLeaderboardEntry(incoming(), examId, userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(examId) &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidMegaLeaderboardEntry(incoming(), examId, userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().examId == existing().examId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'examName', 'scorePoints', 'bestAccuracy',
+                         'megaQuizzesCount', 'highestDifficulty', 'bestTimeSec', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(examId) && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 6. Study Time Leaderboard (1 Day / 1 Week / 1 Month, No PII)
+    match /study_time_leaderboard/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'dayKey', 'daySeconds', 'weekKey', 'weekSeconds',
+                         'monthKey', 'monthSeconds', 'totalSeconds', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'examId', 'examName',
+                         'dayKey', 'daySeconds', 'weekKey', 'weekSeconds',
+                         'monthKey', 'monthSeconds', 'totalSeconds', 'updatedAt'
+                       ]) &&
+                       isValidStudyTimeLeaderboardEntry(incoming(), userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidStudyTimeLeaderboardEntry(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'examId', 'examName',
+                         'dayKey', 'daySeconds', 'weekKey', 'weekSeconds',
+                         'monthKey', 'monthSeconds', 'totalSeconds', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    // 7. Chat Moderation Status (3 warnings -> 7-day chat ban, monotonic while banned)
+    match /chat_moderation/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'warningCount', 'lastWarningReason',
+                         'bannedUntilEpochMs', 'bannedUntil', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'warningCount', 'lastWarningReason',
+                         'bannedUntilEpochMs', 'bannedUntil', 'updatedAt'
+                       ]) &&
+                       isValidChatModeration(incoming(), userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'warningCount', 'lastWarningReason',
+                         'bannedUntilEpochMs', 'bannedUntil', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'warningCount', 'lastWarningReason',
+                         'bannedUntilEpochMs', 'bannedUntil', 'updatedAt'
+                       ]) &&
+                       isValidChatModeration(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       (
+                         !(existing().bannedUntil is timestamp) ||
+                         existing().bannedUntil <= request.time ||
+                         (
+                           incoming().warningCount >= existing().warningCount &&
+                           incoming().bannedUntil >= existing().bannedUntil &&
+                           incoming().bannedUntilEpochMs >= existing().bannedUntilEpochMs
+                         )
+                       );
+
+      allow delete: if false;
+    }
+
+    // 8. Exam Study Room Messages (Blocked if user is within 7-day chat ban)
+    match /exam_chats/{examId}/messages/{messageId} {
+      allow get, list: if isSignedIn() && isValidId(examId);
+
+      allow create: if isSignedIn() &&
+                       isValidId(examId) &&
+                       isValidId(messageId) &&
+                       isChatUnbanned(request.auth.uid) &&
+                       incoming().keys().hasAll([
+                         'senderId', 'senderName', 'examId', 'threadId', 'participantIds',
+                         'text', 'attachmentLabel', 'attachmentType', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'senderId', 'senderName', 'examId', 'threadId', 'participantIds',
+                         'text', 'attachmentLabel', 'attachmentType', 'createdAt'
+                       ]) &&
+                       isValidExamChatMessage(incoming(), examId);
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(examId) && isValidId(messageId) && existing().senderId == request.auth.uid;
+    }
+
+    // 9. Direct 1-on-1 Study Chat Threads (Participant-isolated, ban enforced)
+    match /direct_chat_threads/{threadId} {
+      allow get, list: if isSignedIn() && isValidId(threadId) && request.auth.uid in existing().participantIds;
+
+      allow create: if isSignedIn() &&
+                       isValidId(threadId) &&
+                       isChatUnbanned(request.auth.uid) &&
+                       incoming().keys().hasAll([
+                         'participantIds', 'participantNames', 'lastMessage', 'lastSenderId', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'participantIds', 'participantNames', 'lastMessage', 'lastSenderId', 'updatedAt'
+                       ]) &&
+                       isValidDirectChatThread(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(threadId) &&
+                       isChatUnbanned(request.auth.uid) &&
+                       request.auth.uid in existing().participantIds &&
+                       incoming().participantIds == existing().participantIds &&
+                       incoming().keys().hasAll([
+                         'participantIds', 'participantNames', 'lastMessage', 'lastSenderId', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'participantIds', 'participantNames', 'lastMessage', 'lastSenderId', 'updatedAt'
+                       ]) &&
+                       isValidDirectChatThread(incoming());
+
+      allow delete: if false;
+    }
+
+    // 10. Direct 1-on-1 Study Chat Messages (Participant-isolated, ban enforced)
+    match /direct_chats/{threadId}/messages/{messageId} {
+      allow get, list: if isSignedIn() && isValidId(threadId) && request.auth.uid in existing().participantIds;
+
+      allow create: if isSignedIn() &&
+                       isValidId(threadId) &&
+                       isValidId(messageId) &&
+                       isChatUnbanned(request.auth.uid) &&
+                       incoming().keys().hasAll([
+                         'senderId', 'senderName', 'examId', 'threadId', 'participantIds',
+                         'text', 'attachmentLabel', 'attachmentType', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'senderId', 'senderName', 'examId', 'threadId', 'participantIds',
+                         'text', 'attachmentLabel', 'attachmentType', 'createdAt'
+                       ]) &&
+                       isValidDirectChatMessage(incoming(), threadId);
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(threadId) && isValidId(messageId) && existing().senderId == request.auth.uid;
+    }
+  }
+}
